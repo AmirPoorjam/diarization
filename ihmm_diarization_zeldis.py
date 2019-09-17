@@ -67,10 +67,9 @@ for jx in all_files:
     hypers['b0'] = array2vector(0.001/(np.diagonal(np.cov(MFCCs_matrix,rowvar=False)))).T
     hypers['c0'] = 10/MFCCs_matrix.shape[0]
     
-#    RAND_STATES = scipy.io.loadmat('RAND_STATES.mat') # for debugging
 #    random_init_states = array2vector(np.random.random_integers(1,3, size=Total_samples)).T
     random_init_states = array2vector(np.ceil(np.random.uniform(size=Total_samples) * 3)).T
-    posterior,statistics, suff_stats_pre = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 50, random_init_states)
+    posterior = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 50, random_init_states)
     posterior = np.delete(posterior,0,0) 
     states = stats.mode(posterior)[0]
     num_of_states = int(np.max(states))
@@ -85,23 +84,18 @@ for jx in all_files:
     
         segments = np.delete(segments,[0,0])
         zzz = extended_signal[segments]
-        mean_segments[0,sx] = np.sum(abs(zzz))/len(extended_signal)
-        
+        mean_segments[0,sx] = mfcc_extraction.calculate_num_vad_frames(zzz, MFCCParam, fs)
+
         signals.append(zzz)
-        var_name_chunk = './results/' + str(jx)[0:-4]+'_ch_'+str(sx)+'.wav'
+        var_name_chunk = 'C:/Amir/Codes/diarization/Python_version/results/' + str(jx)[0:-4]+'_ch_'+str(sx)+'.wav'
         librosa.output.write_wav(var_name_chunk, zzz, fs)
 
     varname = 'sig_' + str(fidx)
     rmx = num_of_states
     while rmx > 2:
-        rmx -=1
-
         del signals[int(np.argmin(mean_segments))]
-        remove('./results/'+str(jx)[0:-4]+'_ch_'+str(np.argmin(mean_segments))+'.wav')
+        remove('C:/Amir/Codes/diarization/Python_version/results/'+str(jx)[0:-4]+'_ch_'+str(np.argmin(mean_segments))+'.wav')
+        mean_segments = array2vector(np.delete(mean_segments, int(np.argmin(mean_segments)))).T
+        rmx -= 1
     all_signals[varname]=signals
-        
-    
-            
-        
-    
-    print('Done')
+print('Done')

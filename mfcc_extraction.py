@@ -85,6 +85,16 @@ def mfcc_post_processing(features):
 #    f_d_dd_vad = f_d_dd[vad_index, :]
 #    return f_d_dd_vad
     return f_d_dd
+
+
+def calculate_num_vad_frames(signal, MFCCParam, fs):
+    Segment_length = round(MFCCParam['FLT'] * fs)
+    Segment_shift = round(MFCCParam['FST'] * fs)
+    Frames = framing(signal, Segment_length, Segment_shift)[0]
+    ss = 20 * np.log10(np.std(Frames,axis=1) + 0.000000001)
+    max1 = np.max(ss)
+    vad_ind = np.all(((ss > max1 - 30),(ss > -55)),axis=0)
+    return len(np.where(vad_ind)[0])
 ##########################################################
     
 def main_mfcc_function(orig_signal,fs,MFCCParam):

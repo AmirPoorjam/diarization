@@ -87,10 +87,7 @@ def main_ihmm_function(data, hypers, iterations, random_init_states):
     sample['Beta']   = np.ones((1, sample['K']+1)) / (sample['K']+1)
     sample['Beta'],_,_   = iHmmHyperSample(sample['Z'], sample['Beta'], sample['alpha0'], sample['gamma'])
     
-#    samplebeta = scipy.io.loadmat('sample_beta.mat') # for debugging
-#    sample['Beta'] = samplebeta['sampleBeta']        # for debugging
-    
-    ittr = 0 
+    ittr = 0
     posterior = np.zeros((1,total_samples))
 
     while ittr < iterations:
