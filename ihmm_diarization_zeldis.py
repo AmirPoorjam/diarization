@@ -10,8 +10,6 @@ from os import remove
 import mfcc_extraction
 import iHmmNormalSampleGibbsStatesPosterior as iHMM
 from scipy import stats
-#import IPython.display as ipd # for debugging
-#import scipy.io
 
 def array2vector(array):
     array = array.reshape((array.shape[0], 1))
@@ -72,7 +70,7 @@ for jx in all_files:
 #    RAND_STATES = scipy.io.loadmat('RAND_STATES.mat') # for debugging
 #    random_init_states = array2vector(np.random.random_integers(1,3, size=Total_samples)).T
     random_init_states = array2vector(np.ceil(np.random.uniform(size=Total_samples) * 3)).T
-    posterior,statistics, suff_stats_pre = iHMM.main_iHMM_function(MFCCs_matrix, hypers, 50, random_init_states)
+    posterior,statistics, suff_stats_pre = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 50, random_init_states)
     posterior = np.delete(posterior,0,0) 
     states = stats.mode(posterior)[0]
     num_of_states = int(np.max(states))
@@ -86,19 +84,19 @@ for jx in all_files:
             segments = np.append(segments,np.arange((int(zx*FRAME_AVG*MFCCParam['FST']*fs)),(int((zx+1)*FRAME_AVG*MFCCParam['FST']*fs))))
     
         segments = np.delete(segments,[0,0])
-#        zzz = array2vector(extended_signal[segments]).T
         zzz = extended_signal[segments]
         mean_segments[0,sx] = np.sum(abs(zzz))/len(extended_signal)
         
         signals.append(zzz)
         var_name_chunk = './results/' + str(jx)[0:-4]+'_ch_'+str(sx)+'.wav'
-        librosa.output.write_wav(var_name_chunk, zzz, fs)         
-    
+        librosa.output.write_wav(var_name_chunk, zzz, fs)
+
+    varname = 'sig_' + str(fidx)
     rmx = num_of_states
     while rmx > 2:
         rmx -=1
-        varname = 'sig_'+str(fidx)
-        del signals[np.argmin(mean_segments)]
+
+        del signals[int(np.argmin(mean_segments))]
         remove('./results/'+str(jx)[0:-4]+'_ch_'+str(np.argmin(mean_segments))+'.wav')
     all_signals[varname]=signals
         

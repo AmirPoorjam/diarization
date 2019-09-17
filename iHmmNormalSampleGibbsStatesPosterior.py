@@ -68,7 +68,7 @@ def NegLogLikelihood(fNewCluster, fMoS,fMoG,fMoGH,Yn, a0, b0, mu0, c0, mu_k, tau
     return negllk
 
 #######################
-def main_iHMM_function(data, hypers, iterations, random_init_states):
+def main_ihmm_function(data, hypers, iterations, random_init_states):
     # Initialize the sampler.
     total_samples,D = data.shape
     sample = {'Z':random_init_states,
@@ -92,12 +92,7 @@ def main_iHMM_function(data, hypers, iterations, random_init_states):
     
     ittr = 0 
     posterior = np.zeros((1,total_samples))
-    N_list = []
-    M_list = []
-    SumObserv_list = []
-    SumSquaredObserv_list = []
-    NumberObserv_list = []
-    
+
     while ittr < iterations:
         print('Iteration: ' + str(ittr+1), end =" ")
         # Compute the sufficient statistics for the normal distribution       
@@ -110,7 +105,6 @@ def main_iHMM_function(data, hypers, iterations, random_init_states):
             SumSquaredObserv[int(sample['Z'][0,t])-1, :] = SumSquaredObserv[int(sample['Z'][0,t])-1, :] + data[t, :]**2
             NumberObserv[int(sample['Z'][0,t])-1,0] =  NumberObserv[int(sample['Z'][0,t])-1,0] + 1
             
-        
         # Compute the empirical transition matrix. N(i,j) is the number of transition from state i to j
         N = np.zeros((sample['K'], sample['K']),dtype=np.int)
         N[0, int(sample['Z'][0,0])-1] = 1
@@ -132,7 +126,6 @@ def main_iHMM_function(data, hypers, iterations, random_init_states):
             if t != total_samples-1:
                 N[int(sample['Z'][0,t])-1, int(sample['Z'][0,t+1])-1] = N[int(sample['Z'][0,t])-1, int(sample['Z'][0,t+1])-1] - 1
                 
-            
             # Compute the marginal probability for timestep t
             r = np.ones((1, sample['K']+1))
             for k in range(sample['K']):
@@ -140,7 +133,6 @@ def main_iHMM_function(data, hypers, iterations, random_init_states):
                     r[0,k] = r[0,k] * ( N[int(sample['Z'][0,t-1])-1, k] + sample['alpha0'] * sample['Beta'][0,k] )
                 else:
                     r[0,k] = r[0,k] * ( N[0, k] + sample['alpha0'] * sample['Beta'][0,k] )
-                
                 
                 if t != total_samples-1:
                     if t > 0 and k != int(sample['Z'][0,t-1])-1:
@@ -161,7 +153,6 @@ def main_iHMM_function(data, hypers, iterations, random_init_states):
                     elif t == 0 and k == 0 and k == int(sample['Z'][0,t+1])-1:
                         r[0,k] = r[0,k] * ( N[k, int(sample['Z'][0,t+1])-1] + 1 + sample['alpha0'] * sample['Beta'][0,int(sample['Z'][0,t+1])-1] ) / ( sum(N[k, :]) + 1 + sample['alpha0'] )
                         
-                
                 # Update Cluster parameters
                 a_n = hypers['a0'] + NumberObserv[k, 0]/2
                 c_n = hypers['c0'] + NumberObserv[k, 0]
@@ -172,23 +163,15 @@ def main_iHMM_function(data, hypers, iterations, random_init_states):
                     b_n = hypers['b0']
                     
                 r[0,k] = r[0,k] * np.exp(-NegLogLikelihood(0, 1, 0, 0, array2vector(data[t, :]).T, a_n, b_n, m_n, c_n,[],[]))
-                    
-                    
-                
-            r[0,sample['K']] = np.exp(-NegLogLikelihood(1, 1, 0, 1, array2vector(data[t, :]).T, hypers['a0'], hypers['b0'], hypers['m0'].T, hypers['c0'],[],[]))
 
+            r[0,sample['K']] = np.exp(-NegLogLikelihood(1, 1, 0, 1, array2vector(data[t, :]).T, hypers['a0'], hypers['b0'], hypers['m0'].T, hypers['c0'],[],[]))
 
             if t != total_samples-1:
                 r[0,sample['K']] = r[0,sample['K']] * sample['Beta'][0,int(sample['Z'][0,t+1])-1]
         
-        
             # Resample s_t
             r = r / np.sum(r)
             sample['Z'][0,t] = 1 + np.sum(np.random.uniform() > np.cumsum(r))
-
-#            sampleZ = scipy.io.loadmat('sampleZ.mat') # for debugging
-#            sample['Z'] = sampleZ['sampleZ']          # for debugging
-
 
             # If we move to a new state
             if sample['Z'][0,t] > sample['K']:
@@ -213,7 +196,6 @@ def main_iHMM_function(data, hypers, iterations, random_init_states):
             SumSquaredObserv[int(sample['Z'][0,t])-1, :] = SumSquaredObserv[int(sample['Z'][0,t])-1, :] + data[t, :]**2
             NumberObserv[int(sample['Z'][0,t])-1,0] =  NumberObserv[int(sample['Z'][0,t])-1,0] + 1
         
-
             if t != 0:
                 N[int(sample['Z'][0,t-1])-1, int(sample['Z'][0,t])-1] = N[int(sample['Z'][0,t-1])-1, int(sample['Z'][0,t])-1] + 1
             else:
@@ -222,11 +204,10 @@ def main_iHMM_function(data, hypers, iterations, random_init_states):
             if t != total_samples-1:
                 N[int(sample['Z'][0,t])-1, int(sample['Z'][0,t+1])-1] = N[int(sample['Z'][0,t])-1, int(sample['Z'][0,t+1])-1] + 1
             
-        
         # Recompute the number of states - recycle empty ones.
         zind = (np.sort(np.setdiff1d(np.arange(1,sample['K']+1), sample['Z'])))[::-1]
         if zind.size != 0: # we have new states
-            for zix in zind:             # We sorted decending to make sure we delete from the back onwards, otherwise indexing is more complex
+            for zix in zind:  # sort decending to make sure delete from the back onwards, otherwise indexing is complex
                 sample['Z'][sample['Z'] > zix] = sample['Z'][sample['Z'] > zix] - 1
                 sample['Beta'][0,-1] = sample['Beta'][0,-1] + sample['Beta'][0,zix-1]
                 sample['Beta'] = array2vector(np.delete(sample['Beta'], zix-1)).T
@@ -234,47 +215,17 @@ def main_iHMM_function(data, hypers, iterations, random_init_states):
         sample['K'] = sample['Beta'].shape[1]-1
         
         # Resample Beta
-        sample['Beta'],M,N  = iHmmHyperSample(sample['Z'], sample['Beta'], sample['alpha0'], sample['gamma'])
-        
-        # Prepare next iteration.
-        SO, SSO, NO = SumObserv, SumSquaredObserv, NumberObserv
-        
-        SO  = np.delete(SO, zind, axis=0)
-        SSO = np.delete(SSO, zind, axis=0)
-        NO  = np.delete(NO, zind)
-                
-        N_list.append(N)
-        M_list.append(M)
-        SumObserv_list.append(SO)
-        SumSquaredObserv_list.append(SSO)
-        NumberObserv_list.append(NO)
-        
+        sample['Beta'], M, N = iHmmHyperSample(sample['Z'], sample['Beta'], sample['alpha0'], sample['gamma'])
+
         stats['alpha0'][0,ittr] = sample['alpha0']
         stats['gamma'][0,ittr] = sample['gamma']
         stats['K'][0,ittr] = sample['K']
-        
-        
+
         posterior = np.concatenate((posterior,(sample['Z'])))
 
         ittr += 1
         print(', K: ' + str(sample['K']))
-    stats['N'] = N_list
-    stats['M'] = M_list
-    stats['SumObserv'] = SumObserv_list
-    stats['SumSquaredObserv'] = SumSquaredObserv_list
-    stats['NumberObserv'] = NumberObserv_list
-
-#    mode_parameters = np.argmax(stats['jll'])
-    mode_parameters = iterations-1
-    suff_stats_pre = {}
-    suff_stats_pre['K'] = stats['K'][0,mode_parameters]
-    suff_stats_pre['N'] = N_list[mode_parameters]
-    suff_stats_pre['M'] = M_list[mode_parameters]
-    suff_stats_pre['NumberObserv'] = NumberObserv_list[mode_parameters]
-    suff_stats_pre['SumSquaredObserv'] = SumSquaredObserv_list[mode_parameters]
-    suff_stats_pre['SumObserv'] = SumObserv_list[mode_parameters]
-    suff_stats_pre['mode_parameters'] = mode_parameters
     
-    return posterior, stats, suff_stats_pre
+    return posterior
 
     
