@@ -5,8 +5,6 @@ import numpy as np
 import librosa
 from os import listdir
 from os import remove
-
-
 import mfcc_extraction
 import iHmmNormalSampleGibbsStatesPosterior as iHMM
 from scipy import stats
