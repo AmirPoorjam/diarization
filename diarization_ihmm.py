@@ -1,6 +1,6 @@
 # Diarization
-# Input: sourcefoldedr: direc
-# Output: separated channels
+# Input: sourcefoldedr, destinationfolder, filename
+# Output: diarized file separeted into two channels
 
 # Amir H. Poorjam
 import time
