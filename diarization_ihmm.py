@@ -77,8 +77,8 @@ varname_ch_1 = destinationfolder + filename[0:-4] + '_ch_1.wav'
 librosa.output.write_wav(varname_ch_0, diarized_signal[ind_vs[0,-2]], fs)
 librosa.output.write_wav(varname_ch_1, diarized_signal[ind_vs[0,-1]], fs)
 
-varname_ch_2 = destinationfolder + filename[0:-4] + '_ch_g.wav'
-librosa.output.write_wav(varname_ch_2, diarized_signal[ind_vs[0,-3]], fs)
+#varname_ch_2 = destinationfolder + filename[0:-4] + '_ch_g.wav'
+#librosa.output.write_wav(varname_ch_2, diarized_signal[ind_vs[0,-3]], fs)
 
 toc = time.time()
 print('|-------------------------------------------------')
