@@ -21,9 +21,9 @@ destinationfolder = sys.argv[2]
 all_files = [f for f in listdir(sourcefoldedr) if f.endswith('.wav')]
 total_file = len(all_files)
 fidx = 0
-for jx in all_files:
-    filename = sourcefoldedr+jx
-    s, fs = librosa.load(filename, sr=16000)
+for filename in all_files:
+    print('%d / %d --> File name: %s' % (fidx, total_file, filename), end='')
+    s, fs = librosa.load(sourcefoldedr+filename, sr=16000)
     sig = s - np.mean(s)
     maxamp = abs(sig).max()
     orig_signal = sig / maxamp
@@ -77,7 +77,7 @@ for jx in all_files:
     librosa.output.write_wav(varname_ch_0, diarized_signal[ind_vs[0,-2]], fs)
     librosa.output.write_wav(varname_ch_1, diarized_signal[ind_vs[0,-1]], fs)
     fidx +=1
-    print('%d / %d processed --> File name: %s ' % (fidx,total_file,jx))
+    print(" --> Processed.")
 
 
 
