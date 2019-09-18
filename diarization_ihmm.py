@@ -53,7 +53,6 @@ hypers['c0'] = 10 / MFCCs_matrix.shape[0]
 random_init_states = iHMM.array2vector(np.random.random_integers(1,3, size=Total_samples)).T
 # random_init_states = iHMM.array2vector(np.ceil(np.random.uniform(size=Total_samples) * 3)).T
 posterior = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 20, random_init_states)
-posterior = np.delete(posterior, 0, 0)
 states = stats.mode(posterior)[0]
 num_of_states = int(np.max(states))
 

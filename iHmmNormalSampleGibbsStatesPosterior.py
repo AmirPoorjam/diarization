@@ -211,7 +211,8 @@ def main_ihmm_function(data, hypers, iterations, random_init_states):
 
         ittr += 1
         # print(', K: ' + str(sample['K']))
-    
+
+    posterior = np.delete(posterior, 0, 0)
     return posterior
 
     
