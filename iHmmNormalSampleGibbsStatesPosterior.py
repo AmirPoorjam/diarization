@@ -73,14 +73,7 @@ def main_ihmm_function(data, hypers, iterations, random_init_states):
     total_samples,D = data.shape
     sample = {'Z':random_init_states,
               'K':int(np.max(random_init_states))}
-    
-    # Setup dictionaries to store the output
 
-    stats = {'K'      : np.zeros((1,iterations)),
-             'alpha0' : np.zeros((1,iterations)),
-             'gamma'  : np.zeros((1,iterations)),
-             'jll'    : np.zeros((1,iterations))}
-    
     # Initialize hypers; resample a few times as our inital guess might be off
     sample['alpha0'] = hypers['alpha0']
     sample['gamma']  = hypers['gamma']
@@ -91,7 +84,7 @@ def main_ihmm_function(data, hypers, iterations, random_init_states):
     posterior = np.zeros((1,total_samples))
 
     while ittr < iterations:
-        print('Iteration: ' + str(ittr+1), end =" ")
+        # print('Iteration: ' + str(ittr+1), end =" ")
         # Compute the sufficient statistics for the normal distribution       
         SumObserv        = np.zeros((sample['K'], D))
         SumSquaredObserv = np.zeros((sample['K'], D))
@@ -214,14 +207,10 @@ def main_ihmm_function(data, hypers, iterations, random_init_states):
         # Resample Beta
         sample['Beta'], M, N = iHmmHyperSample(sample['Z'], sample['Beta'], sample['alpha0'], sample['gamma'])
 
-        stats['alpha0'][0,ittr] = sample['alpha0']
-        stats['gamma'][0,ittr] = sample['gamma']
-        stats['K'][0,ittr] = sample['K']
-
         posterior = np.concatenate((posterior,(sample['Z'])))
 
         ittr += 1
-        print(', K: ' + str(sample['K']))
+        # print(', K: ' + str(sample['K']))
     
     return posterior
 
