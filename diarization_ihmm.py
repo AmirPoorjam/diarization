@@ -50,7 +50,8 @@ hypers['m0'] = iHMM.array2vector(MFCCs_matrix.mean(axis=0, dtype=np.float64))
 hypers['b0'] = iHMM.array2vector(0.001 / (np.diagonal(np.cov(MFCCs_matrix, rowvar=False)))).T
 hypers['c0'] = 10 / MFCCs_matrix.shape[0]
 
-random_init_states = iHMM.array2vector(np.ceil(np.random.uniform(size=Total_samples) * 3)).T
+random_init_states = iHMM.array2vector(np.random.random_integers(1,3, size=Total_samples)).T
+# random_init_states = iHMM.array2vector(np.ceil(np.random.uniform(size=Total_samples) * 3)).T
 posterior = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 20, random_init_states)
 posterior = np.delete(posterior, 0, 0)
 states = stats.mode(posterior)[0]
@@ -70,11 +71,15 @@ for sx in range(num_of_states):
     active_segments[0, sx] = fe.calculate_num_vad_frames(zzz, MFCCParam, fs)
     diarized_signal.append(zzz)
 
-ind_vs = np.argsort(active_segments)[::-1]
+ind_vs = np.argsort(active_segments)
 varname_ch_0 = destinationfolder + filename[0:-4] + '_ch_0.wav'
 varname_ch_1 = destinationfolder + filename[0:-4] + '_ch_1.wav'
-librosa.output.write_wav(varname_ch_0, diarized_signal[ind_vs[0,0]], fs)
-librosa.output.write_wav(varname_ch_1, diarized_signal[ind_vs[0,1]], fs)
+librosa.output.write_wav(varname_ch_0, diarized_signal[ind_vs[0,-2]], fs)
+librosa.output.write_wav(varname_ch_1, diarized_signal[ind_vs[0,-1]], fs)
+
+varname_ch_2 = destinationfolder + filename[0:-4] + '_ch_g.wav'
+librosa.output.write_wav(varname_ch_2, diarized_signal[ind_vs[0,-3]], fs)
+
 toc = time.time()
 print('|-------------------------------------------------')
 print('| %s file is most likely to be the client channel' % (filename[0:-4] + '_ch_0.wav'))
