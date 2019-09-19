@@ -23,7 +23,7 @@ total_file = len(all_files)
 fidx = 0
 for filename in all_files:
     print('%d / %d --> File name: %s' % (fidx, total_file, filename), end='')
-    s, fs = librosa.load(sourcefoldedr+filename, sr=16000)
+    s, fs = librosa.load(sourcefoldedr+filename, sr=None)
     sig = s - np.mean(s)
     maxamp = abs(sig).max()
     orig_signal = sig / maxamp

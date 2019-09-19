@@ -21,7 +21,7 @@ sourcefoldedr = sys.argv[1]
 destinationfolder = sys.argv[2]
 filename = sys.argv[3]
 
-s, fs = librosa.load((sourcefoldedr + filename), sr=16000)
+s, fs = librosa.load((sourcefoldedr + filename), sr=None)
 sig = s - np.mean(s)
 maxamp = abs(sig).max()
 orig_signal = sig / maxamp
