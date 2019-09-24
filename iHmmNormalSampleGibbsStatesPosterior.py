@@ -210,7 +210,7 @@ def main_ihmm_function(data, hypers, iterations, random_init_states):
         posterior = np.concatenate((posterior,(sample['Z'])))
 
         ittr += 1
-        # print(', K: ' + str(sample['K']))
+
 
     posterior = np.delete(posterior, 0, 0)
     return posterior

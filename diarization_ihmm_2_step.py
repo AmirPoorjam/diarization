@@ -1,34 +1,31 @@
 # Diarization
-# Input: sourcefoldedr, destinationfolder
+# Input: sourcefoldedr, destinationfolder, filename
 # Output: diarized file separeted into two channels
 
 # Amir H. Poorjam
+import time
+print('|-------------------------------------------------')
+tic = time.time()
 import numpy as np
 import librosa
 import mfcc_extraction as fe
 import iHmmNormalSampleGibbsStatesPosterior as iHMM
 from scipy import stats
 import sys
-from os import listdir
-import amfm_decompy.pYAAPT as pYAAPT
-
+print("| The file is being processed. Please wait...")
 MFCCParam = {'NumFilters': 27,'NFFT': 512,'FminHz': 0,'FMaxHz': 4000,'no': 12,'FLT': 0.020,'FST': 0.020}
 hypers = {'alpha0': 10, 'gamma': 10, 'a0': 1}
 FRAME_AVG = 15
 
 sourcefoldedr = 'C:/Amir/Data/zeldis_interviews/' # sys.argv[1]
 destinationfolder = 'C:/Amir/Codes/diarization/Python_version/results/' # sys.argv[2]
-
-all_files = [f for f in listdir(sourcefoldedr) if f.endswith('.wav')]
-total_file = len(all_files)
-fidx = 0
-for filename in all_files:
-    print('%d / %d --> File name: %s' % (fidx+1, total_file, filename))
-    s, fs = librosa.load(sourcefoldedr+filename, sr=None)
+filename = '100065.wav' # sys.argv[3]
+s, fs = librosa.load((sourcefoldedr + filename), sr=None)
+print(s.shape)
+for stp in range(2):   # two-step processing
     sig = s - np.mean(s)
     maxamp = abs(sig).max()
     orig_signal = sig / maxamp
-    # pitchY = pYAAPT.yaapt(orig_signal, frame_length=MFCCParam['FLT'], tda_frame_length=MFCCParam['FLT'], frame_space=MFCCParam['FST'], f0_min=60, f0_max=600)
     mfcc = fe.main_mfcc_function(orig_signal, fs, MFCCParam)
     frames_indx = np.arange(mfcc.shape[0])
     cell_len = int(np.ceil(len(frames_indx) / FRAME_AVG))
@@ -51,18 +48,17 @@ for filename in all_files:
     Total_samples = MFCCs_matrix.shape[0]
 
     hypers['m0'] = iHMM.array2vector(MFCCs_matrix.mean(axis=0, dtype=np.float64))
-    hypers['b0'] = iHMM.array2vector(0.0001 / (np.diagonal(np.cov(MFCCs_matrix, rowvar=False)))).T
+    hypers['b0'] = iHMM.array2vector(0.001 / (np.diagonal(np.cov(MFCCs_matrix, rowvar=False)))).T
     hypers['c0'] = 10 / MFCCs_matrix.shape[0]
 
-    init_stat_number = 3
-    random_init_states = iHMM.array2vector(np.random.random_integers(1,init_stat_number, size=Total_samples)).T
-    # random_init_states = iHMM.array2vector(np.random.choice(np.arange(1, init_stat_number+1), Total_samples, p=[0.7, 0.2, 0.1])).T
+    # random_init_states = iHMM.array2vector(np.random.random_integers(1,3, size=Total_samples)).T
+    # random_init_states = iHMM.array2vector(np.ceil(np.random.uniform(size=Total_samples) * 3)).T
+    random_init_states = iHMM.array2vector(np.random.choice(np.arange(1, 4), Total_samples, p=[0.7, 0.1, 0.2])).T
     posterior = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 20, random_init_states)
-    states, state_uncertainty = stats.mode(posterior)
-    post_prob = state_uncertainty / posterior.shape[0]
-    states[post_prob < 0.70] = int(np.max(states)) + 1
+    states,state_uncertainty = stats.mode(posterior)
+    post_prob = state_uncertainty/posterior.shape[0]
+    states[post_prob<0.75]=int(np.max(states))+1
     num_of_states = int(np.max(states))
-
     diarized_signal = []
     active_segments = np.zeros((1, num_of_states))
     for sx in range(num_of_states):
@@ -74,19 +70,27 @@ for filename in all_files:
 
         segments = np.delete(segments, [0, 0])
         zzz = extended_signal[segments]
-        if zzz.size==0:
-            active_segments[0, sx] = 0
-            print('chunck is empty')
-        else:
-            active_segments[0, sx] = fe.calculate_num_vad_frames(zzz, MFCCParam, fs)
+        active_segments[0, sx] = fe.calculate_num_vad_frames(zzz, MFCCParam, fs)
         diarized_signal.append(zzz)
 
     ind_vs = np.argsort(active_segments)
-    varname_ch_0 = destinationfolder + filename[0:-4] + '_ch_0.wav'
-    varname_ch_1 = destinationfolder + filename[0:-4] + '_ch_1.wav'
-    librosa.output.write_wav(varname_ch_0, diarized_signal[ind_vs[0,-2]], fs)
-    librosa.output.write_wav(varname_ch_1, diarized_signal[ind_vs[0,-1]], fs)
-    fidx +=1
+    if stp==0:
+        s = diarized_signal[ind_vs[0, -2]]
+        print(s.shape)
+        varname_ch_1 = destinationfolder + filename[0:-4] + '_ch_1.wav'
+        librosa.output.write_wav(varname_ch_1, diarized_signal[ind_vs[0, -1]], fs)
 
+varname_ch_0 = destinationfolder + filename[0:-4] + '_ch_0.wav'
+librosa.output.write_wav(varname_ch_0, diarized_signal[ind_vs[0,-1]], fs)
+
+toc = time.time()
+print('|-------------------------------------------------')
+print('| %s file is more likely to be the client channel' % (filename[0:-4] + '_ch_0.wav'))
+print('| %s file is more likely to be the interviewer channel' % (filename[0:-4] + '_ch_1.wav'))
+print('|-------------------------------------------------')
+print('| Signal duration: %2.2f min.' % (s.shape[0]/(fs*60)))
+print('| Processing time: %2.2f sec.' % (toc-tic))
+print('| Relative processing time: %2.2f %% of the signal duration.' % (100*(toc-tic)/(s.shape[0]/fs)))
+print('|-------------------------------------------------')
 
 

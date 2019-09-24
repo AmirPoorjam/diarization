@@ -12,29 +12,37 @@ import mfcc_extraction as fe
 import iHmmNormalSampleGibbsStatesPosterior as iHMM
 from scipy import stats
 import sys
+import amfm_decompy.pYAAPT as pYAAPT
+import amfm_decompy.basic_tools as basic
 print("| The file is being processed. Please wait...")
-MFCCParam = {'NumFilters': 27,'NFFT': 512,'FminHz': 0,'FMaxHz': 4000,'no': 12,'FLT': 0.030,'FST': 0.030}
+MFCCParam = {'NumFilters': 27,'NFFT': 1024,'FminHz': 0,'FMaxHz': 4000,'no': 12,'FLT': 0.020,'FST': 0.020}
 hypers = {'alpha0': 10, 'gamma': 10, 'a0': 1}
-FRAME_AVG = 10
+FRAME_AVG = 15
 
-sourcefoldedr = sys.argv[1]
-destinationfolder = sys.argv[2]
-filename = sys.argv[3]
+sourcefoldedr = 'C:/Amir/Data/zeldis_interviews/' # sys.argv[1]
+destinationfolder = 'C:/Amir/Codes/diarization/Python_version/results/' # sys.argv[2]
+filename = '100065.wav' # sys.argv[3]
 
-s, fs = librosa.load((sourcefoldedr + filename), sr=None)
-sig = s - np.mean(s)
-maxamp = abs(sig).max()
-orig_signal = sig / maxamp
-mfcc = fe.main_mfcc_function(orig_signal, fs, MFCCParam)
+# s, fs = librosa.load((sourcefoldedr + filename), sr=None)
+signal = basic.SignalObj('C:/Amir/Data/zeldis_interviews/100065.wav')
+signal.data = signal.data[np.arange(int(0.2*signal.size))]
+signal.size = int(0.2*signal.size)
+fs = int(signal.fs)
+signal.data = signal.data - np.mean(signal.data)
+maxamp = abs(signal.data).max()
+signal.data = signal.data / maxamp
+pitchY = pYAAPT.yaapt(signal, frame_length=1000*MFCCParam['FLT'], tda_frame_length=1000*MFCCParam['FLT'], frame_space=1000*MFCCParam['FST'], f0_min=60, f0_max=500)
+mfcc = fe.main_mfcc_function(signal.data, fs, MFCCParam)
+mfcc = np.concatenate((iHMM.array2vector(pitchY.samp_values),mfcc),axis=1)
 frames_indx = np.arange(mfcc.shape[0])
 cell_len = int(np.ceil(len(frames_indx) / FRAME_AVG))
 if np.mod(len(frames_indx), FRAME_AVG):
     less_frms = FRAME_AVG - np.remainder(len(frames_indx), FRAME_AVG)
     frames_indx = np.concatenate((frames_indx, frames_indx[-1] + np.arange(1, less_frms + 1)))
-    extended_signal = np.append(orig_signal, np.zeros([int(less_frms * fs * MFCCParam['FST']), 1]))
+    extended_signal = np.append(signal.data, np.zeros([int(less_frms * fs * MFCCParam['FST']), 1]))
 else:
     less_frms = 0
-    extended_signal = np.copy(orig_signal)
+    extended_signal = np.copy(signal.data)
 
 Frm_indx = np.reshape(frames_indx, (FRAME_AVG, cell_len), order='F')
 mfccNaN = np.concatenate((mfcc, np.full((less_frms, mfcc.shape[1]), np.nan)), axis=0)
@@ -50,12 +58,16 @@ hypers['m0'] = iHMM.array2vector(MFCCs_matrix.mean(axis=0, dtype=np.float64))
 hypers['b0'] = iHMM.array2vector(0.001 / (np.diagonal(np.cov(MFCCs_matrix, rowvar=False)))).T
 hypers['c0'] = 10 / MFCCs_matrix.shape[0]
 
-random_init_states = iHMM.array2vector(np.random.random_integers(1,3, size=Total_samples)).T
-# random_init_states = iHMM.array2vector(np.ceil(np.random.uniform(size=Total_samples) * 3)).T
+init_stat_number = 3
+random_init_states = iHMM.array2vector(np.random.random_integers(1,init_stat_number, size=Total_samples)).T
+# random_init_states = iHMM.array2vector(np.ceil(np.random.uniform(size=Total_samples) * init_stat_number)).T
+# random_init_states = iHMM.array2vector(np.random.choice(np.arange(1, init_stat_number+1), Total_samples, p=[0.7, 0.2, 0.1])).T
 posterior = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 20, random_init_states)
-states = stats.mode(posterior)[0]
+states,state_uncertainty = stats.mode(posterior)
+post_prob = state_uncertainty/posterior.shape[0]
+states[post_prob<0.75]=int(np.max(states))+1
 num_of_states = int(np.max(states))
-
+print(num_of_states)
 diarized_signal = []
 active_segments = np.zeros((1, num_of_states))
 for sx in range(num_of_states):
@@ -84,9 +96,9 @@ print('|-------------------------------------------------')
 print('| %s file is more likely to be the client channel' % (filename[0:-4] + '_ch_0.wav'))
 print('| %s file is more likely to be the interviewer channel' % (filename[0:-4] + '_ch_1.wav'))
 print('|-------------------------------------------------')
-print('| Signal duration: %2.2f min.' % (s.shape[0]/(fs*60)))
+print('| Signal duration: %2.2f min.' % (signal.size/(fs*60)))
 print('| Processing time: %2.2f sec.' % (toc-tic))
-print('| Relative processing time: %2.2f %% of the signal duration.' % (100*(toc-tic)/(s.shape[0]/fs)))
+print('| Relative processing time: %2.2f %% of the signal duration.' % (100*(toc-tic)/(signal.size/fs)))
 print('|-------------------------------------------------')
 
 
