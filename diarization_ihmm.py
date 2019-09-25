@@ -12,8 +12,9 @@ import mfcc_extraction as fe
 import iHmmNormalSampleGibbsStatesPosterior as iHMM
 from scipy import stats
 import sys
-import amfm_decompy.pYAAPT as pYAAPT
+import parselmouth
 import amfm_decompy.basic_tools as basic
+
 print("| The file is being processed. Please wait...")
 MFCCParam = {'NumFilters': 27,'NFFT': 1024,'FminHz': 0,'FMaxHz': 4000,'no': 12,'FLT': 0.020,'FST': 0.020}
 hypers = {'alpha0': 10, 'gamma': 10, 'a0': 1}
@@ -25,15 +26,21 @@ filename = '100065.wav' # sys.argv[3]
 
 # s, fs = librosa.load((sourcefoldedr + filename), sr=None)
 signal = basic.SignalObj('C:/Amir/Data/zeldis_interviews/100065.wav')
-signal.data = signal.data[np.arange(int(0.2*signal.size))]
-signal.size = int(0.2*signal.size)
+signal_for_pitch = parselmouth.Sound("C:/Amir/Data/zeldis_interviews/100065.wav")
+pitch = signal_for_pitch.to_pitch(time_step=MFCCParam['FLT'])
+pitch_values = iHMM.array2vector(pitch.selected_array['frequency'])
 fs = int(signal.fs)
 signal.data = signal.data - np.mean(signal.data)
 maxamp = abs(signal.data).max()
 signal.data = signal.data / maxamp
-pitchY = pYAAPT.yaapt(signal, frame_length=1000*MFCCParam['FLT'], tda_frame_length=1000*MFCCParam['FLT'], frame_space=1000*MFCCParam['FST'], f0_min=60, f0_max=500)
 mfcc = fe.main_mfcc_function(signal.data, fs, MFCCParam)
-mfcc = np.concatenate((iHMM.array2vector(pitchY.samp_values),mfcc),axis=1)
+if mfcc.shape[0] > pitch_values.shape[0]:
+    pitch_values = iHMM.array2vector(np.append(np.zeros((1,mfcc.shape[0]-pitch_values.shape[0])),pitch_values))
+    # print(pitch_values)
+elif mfcc.shape[0] < pitch_values.shape[0]:
+    pitch_values = pitch_values[0:mfcc.shape[0]+1]
+
+mfcc = np.concatenate((pitch_values,mfcc),axis=1)
 frames_indx = np.arange(mfcc.shape[0])
 cell_len = int(np.ceil(len(frames_indx) / FRAME_AVG))
 if np.mod(len(frames_indx), FRAME_AVG):

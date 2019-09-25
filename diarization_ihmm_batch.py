@@ -10,35 +10,46 @@ import iHmmNormalSampleGibbsStatesPosterior as iHMM
 from scipy import stats
 import sys
 from os import listdir
-import amfm_decompy.pYAAPT as pYAAPT
+import parselmouth
+import amfm_decompy.basic_tools as basic
 
-MFCCParam = {'NumFilters': 27,'NFFT': 512,'FminHz': 0,'FMaxHz': 4000,'no': 12,'FLT': 0.020,'FST': 0.020}
+MFCCParam = {'NumFilters': 27,'NFFT': 1024,'FminHz': 0,'FMaxHz': 4000,'no': 12,'FLT': 0.020,'FST': 0.020}
 hypers = {'alpha0': 10, 'gamma': 10, 'a0': 1}
 FRAME_AVG = 15
 
-sourcefoldedr = 'C:/Amir/Data/zeldis_interviews/' # sys.argv[1]
-destinationfolder = 'C:/Amir/Codes/diarization/Python_version/results/' # sys.argv[2]
+sourcefoldedr = 'C:/Amir/Codes/diarization/Python_version/challenging_data_1/' # 'C:/Amir/Data/zeldis_interviews/' # sys.argv[1]
+destinationfolder = 'C:/Amir/Codes/diarization/Python_version/res_chalng_1/' # sys.argv[2]
 
 all_files = [f for f in listdir(sourcefoldedr) if f.endswith('.wav')]
 total_file = len(all_files)
 fidx = 0
 for filename in all_files:
     print('%d / %d --> File name: %s' % (fidx+1, total_file, filename))
-    s, fs = librosa.load(sourcefoldedr+filename, sr=None)
-    sig = s - np.mean(s)
-    maxamp = abs(sig).max()
-    orig_signal = sig / maxamp
-    # pitchY = pYAAPT.yaapt(orig_signal, frame_length=MFCCParam['FLT'], tda_frame_length=MFCCParam['FLT'], frame_space=MFCCParam['FST'], f0_min=60, f0_max=600)
-    mfcc = fe.main_mfcc_function(orig_signal, fs, MFCCParam)
+    # s, fs = librosa.load(sourcefoldedr+filename, sr=None)
+    signal = basic.SignalObj(sourcefoldedr+filename)
+    signal_for_pitch = parselmouth.Sound(sourcefoldedr+filename)
+    pitch = signal_for_pitch.to_pitch(time_step=MFCCParam['FLT'])
+    pitch_values = iHMM.array2vector(pitch.selected_array['frequency'])
+    fs = int(signal.fs)
+    signal.data = signal.data - np.mean(signal.data)
+    maxamp = abs(signal.data).max()
+    signal.data = signal.data / maxamp
+    mfcc = fe.main_mfcc_function(signal.data, fs, MFCCParam)
+    if mfcc.shape[0] > pitch_values.shape[0]:
+        pitch_values = iHMM.array2vector(np.append(np.zeros((1, mfcc.shape[0] - pitch_values.shape[0])), pitch_values))
+    elif mfcc.shape[0] < pitch_values.shape[0]:
+        pitch_values = pitch_values[0:mfcc.shape[0] + 1]
+
+    mfcc = np.concatenate((pitch_values, mfcc), axis=1)
     frames_indx = np.arange(mfcc.shape[0])
     cell_len = int(np.ceil(len(frames_indx) / FRAME_AVG))
     if np.mod(len(frames_indx), FRAME_AVG):
         less_frms = FRAME_AVG - np.remainder(len(frames_indx), FRAME_AVG)
         frames_indx = np.concatenate((frames_indx, frames_indx[-1] + np.arange(1, less_frms + 1)))
-        extended_signal = np.append(orig_signal, np.zeros([int(less_frms * fs * MFCCParam['FST']), 1]))
+        extended_signal = np.append(signal.data, np.zeros([int(less_frms * fs * MFCCParam['FST']), 1]))
     else:
         less_frms = 0
-        extended_signal = np.copy(orig_signal)
+        extended_signal = np.copy(signal.data)
 
     Frm_indx = np.reshape(frames_indx, (FRAME_AVG, cell_len), order='F')
     mfccNaN = np.concatenate((mfcc, np.full((less_frms, mfcc.shape[1]), np.nan)), axis=0)
@@ -57,10 +68,10 @@ for filename in all_files:
     init_stat_number = 3
     random_init_states = iHMM.array2vector(np.random.random_integers(1,init_stat_number, size=Total_samples)).T
     # random_init_states = iHMM.array2vector(np.random.choice(np.arange(1, init_stat_number+1), Total_samples, p=[0.7, 0.2, 0.1])).T
-    posterior = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 20, random_init_states)
+    posterior = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 30, random_init_states)
     states, state_uncertainty = stats.mode(posterior)
     post_prob = state_uncertainty / posterior.shape[0]
-    states[post_prob < 0.70] = int(np.max(states)) + 1
+    states[post_prob < 0.75] = int(np.max(states)) + 1
     num_of_states = int(np.max(states))
 
     diarized_signal = []
