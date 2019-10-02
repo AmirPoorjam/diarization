@@ -61,7 +61,7 @@ def hamming(win_len):
     
 def computeFFTCepstrum(windowed_frames, mfcc_bank, MFCCParam):
     n_fft = 2 * mfcc_bank.shape[0]
-    SmallNumber = 0.00000000001
+    SmallNumber = 0.000000001
     ESpec = np.power(abs(np.fft.fft(windowed_frames, n=n_fft)),2).T
     
     ESpec = ESpec[0:int(n_fft/2), :]
@@ -91,7 +91,10 @@ def calculate_num_vad_frames(signal, MFCCParam, fs):
     Segment_length = round(MFCCParam['FLT'] * fs)
     Segment_shift = round(MFCCParam['FST'] * fs)
     Frames = framing(signal, Segment_length, Segment_shift)[0]
-    ss = 20 * np.log10(np.std(Frames,axis=1) + 0.000000001)
+    win = hamming(Segment_length)
+    win_repeated = np.tile(win, (Frames.shape[0], 1))
+    windowed_frames = np.multiply(Frames, win_repeated)
+    ss = 20 * np.log10(np.std(windowed_frames,axis=1) + 0.0000000001)
     max1 = np.max(ss)
     vad_ind = np.all(((ss > max1 - 30),(ss > -55)),axis=0)
     return len(np.where(vad_ind)[0])
@@ -104,12 +107,16 @@ def main_mfcc_function(orig_signal,fs,MFCCParam):
     win = hamming(Segment_length)
     win_repeated = np.tile(win,(Frames.shape[0],1))
     windowed_frames = np.multiply(Frames,win_repeated)
-    
     mfcc_bank = MyFilterBank(MFCCParam['NumFilters'],fs,MFCCParam['FminHz'],MFCCParam['FMaxHz'],MFCCParam['NFFT'])
     mfcc_coefficients = computeFFTCepstrum(windowed_frames, mfcc_bank, MFCCParam)
-#    mfcc_coefficients_vad = mfcc_post_processing(mfcc_coefficients,vad_index)
-#    mfcc_coefficients_post_processed = mfcc_post_processing(mfcc_coefficients)
-    return mfcc_coefficients
+    if MFCCParam['vad_flag']==1:
+        ss = 20 * np.log10(np.std(windowed_frames, axis=1) + 0.0000000001)
+        max1 = np.max(ss)
+        vad_ind = np.all(((ss > max1 - 30), (ss > -55)), axis=0)
+        mfcc_coefficients = mfcc_coefficients[vad_ind,:]
+    else:
+        vad_ind=np.ones((Frames.shape[0]))
+    return mfcc_coefficients,vad_ind,Frames
 
 
 
