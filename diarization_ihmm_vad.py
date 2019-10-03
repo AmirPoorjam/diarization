@@ -18,9 +18,9 @@ MFCCParam = {'NumFilters': 27,'NFFT': 1024,'FminHz': 0,'FMaxHz': 4000,'no': 12,'
 hypers = {'alpha0': 10, 'gamma': 10, 'a0': 1}
 FRAME_AVG = 15
 
-sourcefoldedr = 'C:/Amir/Codes/diarization/Python_version/challenging_data_1/' # sys.argv[1]
-destinationfolder = 'C:/Amir/Codes/diarization/Python_version/res_chalng_1/' # sys.argv[2]
-filename = '100503.wav' # sys.argv[3]
+sourcefoldedr = sys.argv[1] # 'C:/Amir/Codes/diarization/Python_version/challenging_data_1/' #
+destinationfolder = sys.argv[2] # 'C:/Amir/Codes/diarization/Python_version/res_chalng_1/' #
+filename =  sys.argv[3] # '100503.wav'
 
 signal, fs = librosa.load((sourcefoldedr + filename), sr=None)
 signal = signal - np.mean(signal)
@@ -55,8 +55,6 @@ hypers['b0'] = iHMM.array2vector(0.001 / (np.diagonal(np.cov(MFCCs_matrix, rowva
 hypers['c0'] = 10 / MFCCs_matrix.shape[0]
 
 init_stat_number = 2
-# random_init_states = iHMM.array2vector(np.random.random_integers(1,init_stat_number, size=Total_samples)).T
-#### random_init_states = iHMM.array2vector(np.ceil(np.random.uniform(size=Total_samples) * init_stat_number)).T
 random_init_states = iHMM.array2vector(np.random.choice(np.arange(1, init_stat_number+1), Total_samples, p=[0.8, 0.2])).T
 posterior = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 30, random_init_states)
 states,state_uncertainty = stats.mode(posterior)
@@ -70,15 +68,7 @@ for sx in range(num_of_states-1):
     ind_states = np.where(states == sx + 1)[1]
     segments = extended_frames[ind_states,:]
     zzz = np.reshape(segments, (segments.shape[0] * segments.shape[1]))
-
-    # segments = 0
-    # for zx in ind_states:
-    #     segments = np.append(segments, np.arange((int(zx * FRAME_AVG * MFCCParam['FST'] * fs)),
-    #                                          (int((zx + 1) * FRAME_AVG * MFCCParam['FST'] * fs))))
-    #
-    # segments = np.delete(segments, [0, 0])
-    # zzz = extended_signal[segments]
-    active_segments[0, sx] = segments.shape[0] # fe.calculate_num_vad_frames(zzz, MFCCParam, fs)
+    active_segments[0, sx] = segments.shape[0]
     diarized_signal.append(zzz)
 
 ind_vs = np.argsort(active_segments)
@@ -86,9 +76,6 @@ varname_ch_0 = destinationfolder + filename[0:-4] + '_ch_0.wav'
 varname_ch_1 = destinationfolder + filename[0:-4] + '_ch_1.wav'
 librosa.output.write_wav(varname_ch_0, diarized_signal[ind_vs[0,-2]], fs)
 librosa.output.write_wav(varname_ch_1, diarized_signal[ind_vs[0,-1]], fs)
-if len(ind_vs)>2:
-    varname_ch_2 = destinationfolder + filename[0:-4] + '_ch_g.wav'
-    librosa.output.write_wav(varname_ch_2, diarized_signal[ind_vs[0,-3]], fs)
 
 toc = time.time()
 print('|-------------------------------------------------')
