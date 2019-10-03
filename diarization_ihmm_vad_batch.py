@@ -10,15 +10,14 @@ import iHmmNormalSampleGibbsStatesPosterior as iHMM
 from scipy import stats
 import sys
 from os import listdir
-import parselmouth
-import amfm_decompy.basic_tools as basic
+
 
 MFCCParam = {'NumFilters': 27,'NFFT': 1024,'FminHz': 0,'FMaxHz': 4000,'no': 12,'FLT': 0.020,'FST': 0.020, 'vad_flag':1}
 hypers = {'alpha0': 10, 'gamma': 10, 'a0': 1}
 FRAME_AVG = 15
 
-sourcefoldedr = 'C:/Amir/Codes/diarization/Python_version/challenging_data_1/' # 'C:/Amir/Data/zeldis_interviews/' # sys.argv[1]
-destinationfolder = 'C:/Amir/Codes/diarization/Python_version/res_chalng_1/' # sys.argv[2]
+sourcefoldedr = sys.argv[1]
+destinationfolder = sys.argv[2]
 
 all_files = [f for f in listdir(sourcefoldedr) if f.endswith('.wav')]
 total_file = len(all_files)
@@ -72,7 +71,7 @@ for filename in all_files:
         ind_states = np.where(states == sx + 1)[1]
         segments = extended_frames[ind_states, :]
         zzz = np.reshape(segments, (segments.shape[0] * segments.shape[1]))
-        active_segments[0, sx] = segments.shape[0]  # fe.calculate_num_vad_frames(zzz, MFCCParam, fs)
+        active_segments[0, sx] = segments.shape[0]
         diarized_signal.append(zzz)
 
     ind_vs = np.argsort(active_segments)

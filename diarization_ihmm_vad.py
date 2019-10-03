@@ -18,9 +18,9 @@ MFCCParam = {'NumFilters': 27,'NFFT': 1024,'FminHz': 0,'FMaxHz': 4000,'no': 12,'
 hypers = {'alpha0': 10, 'gamma': 10, 'a0': 1}
 FRAME_AVG = 15
 
-sourcefoldedr = sys.argv[1] # 'C:/Amir/Codes/diarization/Python_version/challenging_data_1/' #
-destinationfolder = sys.argv[2] # 'C:/Amir/Codes/diarization/Python_version/res_chalng_1/' #
-filename =  sys.argv[3] # '100503.wav'
+sourcefoldedr = sys.argv[1]
+destinationfolder = sys.argv[2]
+filename =  sys.argv[3]
 
 signal, fs = librosa.load((sourcefoldedr + filename), sr=None)
 signal = signal - np.mean(signal)
