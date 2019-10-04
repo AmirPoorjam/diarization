@@ -1,9 +1,8 @@
 ## MFCC Calculation
 
 import numpy as np
-from obspy.signal.util import enframe
-from scipy.fftpack import dct
-from scipy.signal import convolve2d
+import librosa
+import scipy
 
 
 def Hz2Mel(f_Hz):
@@ -14,9 +13,10 @@ def Mel2Hz(f_Mel):
     f_Hz = 1000 * (10**((np.log10(2) * f_Mel)/1000) - 1);
     return f_Hz
 
-def framing(signal,Segment_length,Segment_shift):
-    win = np.ones(Segment_length)
-    Frames = enframe(signal, win, Segment_shift)
+def framing(sig,Segment_length,Segment_shift):
+    f = librosa.util.frame(sig, Segment_length, Segment_shift).T
+    f = scipy.signal.detrend(f, type='constant')
+    Frames = (f, f.shape[1], f.shape[0])
     return Frames
 
 def MyFilterBank(NumFilters,fs,FminHz,FMaxHz,NFFT):
@@ -67,7 +67,7 @@ def computeFFTCepstrum(windowed_frames, mfcc_bank, MFCCParam):
     ESpec = ESpec[0:int(n_fft/2), :]
     FBSpec = mfcc_bank.T @ ESpec
     LogSpec = np.log(FBSpec + SmallNumber);
-    Cep = dct(LogSpec.T,norm='ortho').T
+    Cep = scipy.fftpack.dct(LogSpec.T,norm='ortho').T
     if Cep.shape[0]>2:
         Cep = Cep[0:MFCCParam['no']+1, :].T
     else:
@@ -75,15 +75,11 @@ def computeFFTCepstrum(windowed_frames, mfcc_bank, MFCCParam):
         
     return Cep
 
-def mfcc_post_processing(features):
-#def mfcc_post_processing(features,vad_index):
+def delta_delta_mfcc_post_processing(features):
     filter_vector = np.array([[1],[0],[-1]])
-    delta = convolve2d(features, filter_vector, mode='same')
-    delta_delta = convolve2d(delta, filter_vector, mode='same')
+    delta = scipy.signal.convolve2d(features, filter_vector, mode='same')
+    delta_delta = scipy.signal.convolve2d(delta, filter_vector, mode='same')
     f_d_dd = np.concatenate((features, delta,delta_delta), axis=1)
-    
-#    f_d_dd_vad = f_d_dd[vad_index, :]
-#    return f_d_dd_vad
     return f_d_dd
 
 
