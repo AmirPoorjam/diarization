@@ -57,30 +57,42 @@ hypers['c0'] = 10 / MFCCs_matrix.shape[0]
 init_stat_number = 2
 random_init_states = iHMM.array2vector(np.random.choice(np.arange(1, init_stat_number+1), Total_samples, p=[0.8, 0.2])).T
 posterior = iHMM.main_ihmm_function(MFCCs_matrix, hypers, 30, random_init_states)
-states,state_uncertainty = stats.mode(posterior)
-post_prob = state_uncertainty/posterior.shape[0]
-states[post_prob<0.60]=int(np.max(states))+1
-states = np.reshape(np.tile(states.T,FRAME_AVG),(1,FRAME_AVG*states.shape[1]))
+states, state_uncertainty = stats.mode(posterior)
 num_of_states = int(np.max(states))
+post_prob = state_uncertainty / posterior.shape[0]
+states[post_prob < 0.60] = np.nan
+states = np.reshape(np.tile(states.T, FRAME_AVG), (1, FRAME_AVG * states.shape[1]))
+
 diarized_signal = []
-active_segments = np.zeros((1, num_of_states-1))
-for sx in range(num_of_states-1):
+active_segments = np.zeros((1, num_of_states))
+for sx in range(num_of_states):
     ind_states = np.where(states == sx + 1)[1]
-    segments = extended_frames[ind_states,:]
+    segments = extended_frames[ind_states, :]
     zzz = np.reshape(segments, (segments.shape[0] * segments.shape[1]))
     active_segments[0, sx] = segments.shape[0]
     diarized_signal.append(zzz)
-
 ind_vs = np.argsort(active_segments)
-varname_ch_0 = destinationfolder + filename[0:-4] + '_ch_0.wav'
-varname_ch_1 = destinationfolder + filename[0:-4] + '_ch_1.wav'
-librosa.output.write_wav(varname_ch_0, diarized_signal[ind_vs[0,-2]], fs)
-librosa.output.write_wav(varname_ch_1, diarized_signal[ind_vs[0,-1]], fs)
+if ind_vs.shape[1] > 1:
+    client_signal      = diarized_signal[ind_vs[0,-2]]
+    interviewer_signal = diarized_signal[ind_vs[0,-1]]
+    varname_ch_0 = destinationfolder + filename[0:-4] + '_ch_0.wav'
+    varname_ch_1 = destinationfolder + filename[0:-4] + '_ch_1.wav'
+    librosa.output.write_wav(varname_ch_0, client_signal, fs)
+    librosa.output.write_wav(varname_ch_1, interviewer_signal, fs)
+    toc = time.time()
+    print('|-------------------------------------------------')
+    print('| %s file is more likely to be the client channel' % (filename[0:-4] + '_ch_0.wav'))
+    print('| %s file is more likely to be the interviewer channel' % (filename[0:-4] + '_ch_1.wav'))
 
-toc = time.time()
-print('|-------------------------------------------------')
-print('| %s file is more likely to be the client channel' % (filename[0:-4] + '_ch_0.wav'))
-print('| %s file is more likely to be the interviewer channel' % (filename[0:-4] + '_ch_1.wav'))
+else:
+    client_signal = []
+    interviewer_signal = diarized_signal[ind_vs[0, -1]]
+    varname_ch_1 = destinationfolder + filename[0:-4] + '_ch_1.wav'
+    librosa.output.write_wav(varname_ch_1, interviewer_signal, fs)
+    print('|-------------------------------------------------')
+    print('|----- No client channel has been detected! ------')
+    print('| %s file is more likely to be the interviewer channel' % (filename[0:-4] + '_ch_1.wav'))
+
 print('|-------------------------------------------------')
 print('| Signal duration: %2.2f min.' % (signal.size/(fs*60)))
 print('| Processing time: %2.2f sec.' % (toc-tic))
