@@ -8,7 +8,7 @@ print('|-------------------------------------------------')
 tic = time.time()
 import numpy as np
 import librosa
-import mfcc_extraction as fe
+import acoustic_feature_extraction as fe
 import iHmmNormalSampleGibbsStatesPosterior as iHMM
 from scipy import stats
 import sys
@@ -18,9 +18,9 @@ MFCCParam = {'NumFilters': 27,'NFFT': 1024,'FminHz': 0,'FMaxHz': 4000,'no': 12,'
 hypers = {'alpha0': 10, 'gamma': 10, 'a0': 1}
 FRAME_AVG = 15
 
-sourcefoldedr = sys.argv[1]
-destinationfolder = sys.argv[2]
-filename =  sys.argv[3]
+sourcefoldedr =  'C:/Amir/Data/zeldis_interviews/' # sys.argv[1]
+destinationfolder = 'C:/Amir/Codes/diarization/Python_version/res_chalng_1/' # sys.argv[2]
+filename =  '100278.wav' # sys.argv[3]
 
 signal, fs = librosa.load((sourcefoldedr + filename), sr=None)
 signal = signal - np.mean(signal)
