@@ -20,10 +20,119 @@ def Mel2Hz(f_Mel):
     return f_Hz
 
 def framing(sig,Segment_length,Segment_shift):
-    f = librosa.util.frame(sig, Segment_length, Segment_shift).T
-    f = scipy.signal.detrend(f, type='constant')
-    Frames = (f, f.shape[1], f.shape[0])
+    Frames = librosa.util.frame(sig, Segment_length, Segment_shift).T
+    # f = scipy.signal.detrend(f, type='constant')
+    # Frames = (f, f.shape[1], f.shape[0])
     return Frames
+
+def Hz2Bark(f_Hz):
+    f_bark = 6 * np.arcsinh(f_Hz / 600)
+    return f_bark
+
+def Bark2Hz(f_bark):
+    f_Hz = 600 * np.sinh(f_bark / 6)
+    return f_Hz
+
+def FFT2Bark_matrix(n_fft,sr,n_filts,width,min_freq,max_freq):
+    min_bark = Hz2Bark(min_freq)
+    nyqbark  = Hz2Bark(max_freq) - min_bark
+    if n_filts == 0:
+        n_filts = np.ceil(nyqbark) + 1
+    wts = np.zeros((n_filts,n_fft))
+    step_barks = nyqbark / (n_filts - 1) # bark per filter
+    x = np.arange(int(n_fft/2 + 1)) * sr / n_fft
+    binbarks = Hz2Bark(x)
+    for i in range(n_filts):
+        f_bark_mid = min_bark + i * step_barks
+        lof = array2vector(binbarks - f_bark_mid - 0.5).T
+        hif = array2vector(binbarks - f_bark_mid + 0.5).T
+        tmp = np.concatenate((hif,-2.5*lof),axis=0)
+        wts[i, np.arange(int(n_fft / 2) + 1)] = 10 ** (np.min((np.zeros((1, tmp.shape[1])), array2vector(np.min(tmp, axis=0) / width).T), axis=0))
+    return wts
+
+def postaud(cbf,f_max,broaden):
+    # loudness equalization and cube root compression
+    # cbf = critical band filters (rows: critical bands, cols: frames)
+    n_bands,n_frames = cbf.shape
+    # Include frequency points at extremes, discard later
+    nfpts = n_bands + 2 * broaden
+    bandcfhz = Bark2Hz(np.linspace(0, Hz2Bark(f_max), nfpts))
+    # Remove extremal bands (the ones that will be duplicated)
+    bandcfhz = bandcfhz[(broaden):(nfpts-broaden)]
+    # Hynek's magic equal-loudness-curve formula
+    fsq = bandcfhz ** 2
+    ftmp = fsq + 1.6e5
+    eql = ((fsq/ftmp)**2) * ((fsq + 1.44e6)/(fsq + 9.61e6))
+    # weight the critical bands and cube root compress
+    z = (np.tile(array2vector(eql),(1,n_frames))*cbf) ** 0.33
+    # replicate first and last band (because they are unreliable as calculated)
+    if broaden:
+        indx = np.append(np.append(0, np.arange(n_bands)), n_bands-1)
+        y = z[indx,:]
+    else:
+        indx = np.append(np.append(1,np.arange(1,n_bands-1)),n_bands-2)
+        y = z[indx,:]
+    return y
+
+def dolpc(x,model_order):
+    n_bands,n_frames = x.shape
+    new_array = np.concatenate((x,x[np.arange(17-2,0,-1),:]),axis=0)
+    r = np.real(np.fft.ifft(new_array.T).T)  # autocorrelation
+    r = r[0:n_bands,:] # First half only
+    y = np.ones((n_frames, model_order + 1))
+    e = np.zeros((n_frames, 1))
+    for i in range(n_frames):
+        y_tmp, e_tmp = lvdb(r[:, i], model_order)
+        y[i, 1:model_order + 1] = y_tmp
+        e[i, 0] = e_tmp
+    y = np.divide(y.T, np.add(np.tile(e.T, (model_order + 1, 1)), 1e-8))
+    return y
+
+def lvdb(x,model_order):
+    # Levinson-Durbin Recursion
+    A = np.zeros(model_order)
+    e  = x[0]
+    T = x[1:]
+    for i in range(0, model_order):
+        b = T[i]
+        if i == 0:
+            tmp = -b / e
+        else:
+            for j in range(0, i):
+                b = b + A[j] * T[i-j-1]
+            tmp = -b / e
+        e = e * (1 - tmp**2)
+        A[i] = tmp
+        if i == 0:
+            continue
+        khalf = (i+1)//2
+        for j in range(0, khalf):
+            ij = i-j-1
+            b = A[j]
+            A[j] = b + tmp * A[ij]
+            if j != ij:
+                A[ij] += tmp*b
+    return A, e
+
+
+def lpc2cep(lpc, n_cep):
+    n_lpc, n_column = lpc.shape
+    cep = np.zeros((n_cep, n_column))
+    cep[0, :] = -np.log(lpc[0, :])
+    norm_lpc = lpc / (np.tile(lpc[0, :], (n_lpc,1)))
+    for n in range(1, n_cep):
+        sum_vec = 0
+        for m in range(1, n+1):
+            sum_vec = sum_vec + (n - m) * norm_lpc[m, :] * cep[(n - m), :]
+        cep[n, :] = -(norm_lpc[n, :] + (sum_vec / n))
+    return cep
+
+
+def lifter(cep, lift=0.6, invs=False):
+    n_cep = cep.shape[0]
+    liftwts = np.append(1, np.arange(1, n_cep) ** lift)
+    y = np.diag(liftwts) @ cep
+    return y
 
 def MyFilterBank(NumFilters,fs,FminHz,FMaxHz,NFFT):
     NumFilters = NumFilters + 1
@@ -34,7 +143,6 @@ def MyFilterBank(NumFilters,fs,FminHz,FMaxHz,NFFT):
     for m in range(1,NumFilters+1):
         CenterFreq[m-1] = Mel2Hz(ml_min + (m+1)*((ml_max - ml_min)/(NumFilters + 1)))
         f[m] = np.floor((NFFT/fs) * CenterFreq[m-1])
-
     f[0] = np.floor((FminHz/fs)*NFFT)+1
     f[-1] = np.ceil((FMaxHz/fs)*NFFT)-1
     H = np.zeros((NumFilters+1,int(NFFT/2+1)))
@@ -47,15 +155,12 @@ def MyFilterBank(NumFilters,fs,FminHz,FMaxHz,NFFT):
         for k in range(fnb,fnc+1):
             if fko==0:
                 fko = 1
-
             H[n-1,k-1] = (k - fnb)/fko
         for l in range(fnc,fna+1):
             if flo==0:
                 flo = 1
-
             if fna - fnc != 0:
                 H[n-1,l-1] = (fna - l)/flo
-
     H = H[0:NumFilters-1,:]
     H = H.T
     return H
@@ -69,7 +174,6 @@ def computeFFTCepstrum(windowed_frames, mfcc_bank, MFCCParam):
     n_fft = 2 * mfcc_bank.shape[0]
     SmallNumber = 0.000000001
     ESpec = np.power(abs(np.fft.fft(windowed_frames, n=n_fft)),2).T
-
     ESpec = ESpec[0:int(n_fft/2), :]
     FBSpec = mfcc_bank.T @ ESpec
     LogSpec = np.log(FBSpec + SmallNumber);
@@ -78,15 +182,12 @@ def computeFFTCepstrum(windowed_frames, mfcc_bank, MFCCParam):
         Cep = Cep[0:MFCCParam['no']+1, :].T
     else:
         Cep = []
-
     return Cep
 
-def delta_delta_mfcc_post_processing(features):
+def delta_delta_feature_post_processing(features):
     filter_vector = np.array([[1],[0],[-1]])
-    delta = scipy.signal.convolve2d(features, filter_vector, mode='same')
-    delta_delta = scipy.signal.convolve2d(delta, filter_vector, mode='same')
-    f_d_dd = np.concatenate((features, delta,delta_delta), axis=1)
-    return f_d_dd
+    feature_delta = scipy.signal.convolve2d(features, filter_vector, mode='same')
+    return feature_delta
 
 
 def calculate_num_vad_frames(signal, MFCCParam, fs):
@@ -171,6 +272,35 @@ def measureFormants(signal, f0min, f0max):
     f4_median = statistics.median(f4_list)
     all_formants = np.array([f1_mean, f2_mean, f3_mean, f4_mean, f1_median, f2_median, f3_median, f4_median])
     return all_formants
+
+def calculate_CI(mu,sigma,N,alpha):
+    # This function calculates the estimate of the population mean and        %
+    # the alpha % confidence interval of the population mean for the sampel   %
+    # size more than 30, using the Z-distribution table.                      %
+    # Inputs:                                                                 %
+    #       mu: sample mean                                                   %
+    #       sigma: sample standard deviation                                  %
+    #       N: number of samples                                              %
+    #       alpha: confidence level (either 95 or 99, default = 95)           %
+    # Outputs:                                                                %
+    #       ci: alpha % confidence interval of the population mean            %
+    #       lb: lower bound                                                   %
+    #       ub: upper bound                                                   %
+    ###### Amir H. Poorjam ####################################################
+    if alpha == 95:
+        z_val = 1.96
+    elif alpha == 99:
+        z_val = 2.58
+    else:
+        print('alpha is neither 95 nor 99. It is set to 95.')
+        z_val = 1.96
+    SE = sigma / np.sqrt(N)
+    ci = z_val * SE
+    lb = mu - ci
+    ub = mu + ci
+    return ci, lb, ub
+
+
 ##########################################################
     
 def main_mfcc_function(orig_signal,fs,MFCCParam):
@@ -193,6 +323,41 @@ def main_mfcc_function(orig_signal,fs,MFCCParam):
         if MFCCParam['CMVN'] == 1:
             mfcc_coefficients = (mfcc_coefficients - np.tile(np.mean(mfcc_coefficients,axis=0), (mfcc_coefficients.shape[0],1))) / np.tile(np.std(mfcc_coefficients,axis=0,ddof=1),(mfcc_coefficients.shape[0], 1))
     return mfcc_coefficients,vad_ind,Frames
+
+def main_rasta_plp_function(orig_signal,fs,PLP_Param):
+    Segment_length = round(PLP_Param['FLT'] * fs)
+    Segment_shift = round(PLP_Param['FST'] * fs)
+    # Frames = framing(orig_signal, Segment_length, Segment_shift)[0]
+    Frames = framing(orig_signal, Segment_length, Segment_shift)
+    win = hamming(Segment_length)
+    win_repeated = np.tile(win, (Frames.shape[0], 1))
+    windowed_frames = np.multiply(Frames, win_repeated)
+    NFFT = PLP_Param['NFFT'] # 512
+    pspectrum = np.power(abs(np.fft.fft(windowed_frames, n=NFFT)),2).T
+    pspectrum = pspectrum[0:int(NFFT/2) + 1,:]
+    nfreqs = pspectrum.shape[0]
+    n_fft = (nfreqs-1)*2
+    n_filts = int(np.ceil(Hz2Bark(fs/2))+1)
+    wts = FFT2Bark_matrix(n_fft, fs, n_filts, 1, 0, (fs/2))
+    wts = wts[:, 0: nfreqs]
+    aspectrum = wts @ pspectrum
+    # final auditory compressions
+    postspectrum = postaud(aspectrum, (fs/2) , 0)
+    lpcas = dolpc(postspectrum, PLP_Param['lpc_order'])
+    rasta_plp_features      = lpc2cep(lpcas, PLP_Param['lpc_order'] + 1)
+    rasta_plp_features      = lifter(rasta_plp_features, 0.6)
+    rasta_plp_features_D    = delta_delta_feature_post_processing(rasta_plp_features)
+    rasta_plp_features_DD   = delta_delta_feature_post_processing(rasta_plp_features_D)
+    rasta_plp_features_D_DD = np.concatenate((rasta_plp_features, rasta_plp_features_D, rasta_plp_features_DD), axis=0)
+    if PLP_Param['vad_flag']==1:
+        ss = 20 * np.log10(np.std(windowed_frames, axis=1,ddof=1) + 0.0000000001)
+        max1 = np.max(ss)
+        vad_ind = np.all(((ss > max1 - 30), (ss > -55)), axis=0)
+        rasta_plp_features_D_DD = rasta_plp_features_D_DD[:,vad_ind]
+    else:
+        vad_ind=np.ones((Frames.shape[0]))
+    return rasta_plp_features_D_DD.T, vad_ind, Frames
+
 
 
 
