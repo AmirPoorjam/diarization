@@ -16,31 +16,33 @@ import parselmouth
 import amfm_decompy.basic_tools as basic
 
 print("| The file is being processed. Please wait...")
-MFCCParam = {'NumFilters': 27,'NFFT': 1024,'FminHz': 0,'FMaxHz': 4000,'no': 12,'FLT': 0.020,'FST': 0.020}
+MFCCParam = {'NumFilters': 27,'NFFT': 1024,'FminHz': 0,'FMaxHz': 4000,'no': 12,'FLT': 0.020,'FST': 0.020, 'vad_flag':0}
 hypers = {'alpha0': 10, 'gamma': 10, 'a0': 1}
 FRAME_AVG = 15
 
-sourcefoldedr = 'C:/Amir/Data/zeldis_interviews/' # sys.argv[1]
+sourcefoldedr = 'C:/Amir/Codes/diarization/Python_version/challenging_data_1/' # sys.argv[1]
 destinationfolder = 'C:/Amir/Codes/diarization/Python_version/results/' # sys.argv[2]
-filename = '100065.wav' # sys.argv[3]
+filename = '100822.wav' # sys.argv[3]
 
 # s, fs = librosa.load((sourcefoldedr + filename), sr=None)
-signal = basic.SignalObj('C:/Amir/Data/zeldis_interviews/100065.wav')
-signal_for_pitch = parselmouth.Sound("C:/Amir/Data/zeldis_interviews/100065.wav")
-pitch = signal_for_pitch.to_pitch(time_step=MFCCParam['FLT'])
-pitch_values = iHMM.array2vector(pitch.selected_array['frequency'])
+signal = basic.SignalObj((sourcefoldedr + filename),)
+# signal_for_pitch = parselmouth.Sound((sourcefoldedr + filename),)
+# pitch = signal_for_pitch.to_pitch(time_step=MFCCParam['FLT'])
+# pitch_values = iHMM.array2vector(pitch.selected_array['frequency'])
 fs = int(signal.fs)
 signal.data = signal.data - np.mean(signal.data)
 maxamp = abs(signal.data).max()
 signal.data = signal.data / maxamp
-mfcc = fe.main_mfcc_function(signal.data, fs, MFCCParam)
-if mfcc.shape[0] > pitch_values.shape[0]:
-    pitch_values = iHMM.array2vector(np.append(np.zeros((1,mfcc.shape[0]-pitch_values.shape[0])),pitch_values))
-    # print(pitch_values)
-elif mfcc.shape[0] < pitch_values.shape[0]:
-    pitch_values = pitch_values[0:mfcc.shape[0]+1]
+mfcc,_,_ = fe.main_mfcc_function(signal.data, fs, MFCCParam)
 
-mfcc = np.concatenate((pitch_values,mfcc),axis=1)
+# if mfcc.shape[0] > pitch_values.shape[0]:
+#     pitch_values = iHMM.array2vector(np.append(np.zeros((1,mfcc.shape[0]-pitch_values.shape[0])),pitch_values))
+#     # print(pitch_values)
+# elif mfcc.shape[0] < pitch_values.shape[0]:
+#     pitch_values = pitch_values[0:mfcc.shape[0]+1]
+#
+# mfcc = np.concatenate((pitch_values,mfcc),axis=1)
+
 frames_indx = np.arange(mfcc.shape[0])
 cell_len = int(np.ceil(len(frames_indx) / FRAME_AVG))
 if np.mod(len(frames_indx), FRAME_AVG):
@@ -95,8 +97,8 @@ varname_ch_1 = destinationfolder + filename[0:-4] + '_ch_1.wav'
 librosa.output.write_wav(varname_ch_0, diarized_signal[ind_vs[0,-2]], fs)
 librosa.output.write_wav(varname_ch_1, diarized_signal[ind_vs[0,-1]], fs)
 
-# varname_ch_2 = destinationfolder + filename[0:-4] + '_ch_g.wav'
-# librosa.output.write_wav(varname_ch_2, diarized_signal[ind_vs[0,-3]], fs)
+varname_ch_2 = destinationfolder + filename[0:-4] + '_ch_g.wav'
+librosa.output.write_wav(varname_ch_2, diarized_signal[ind_vs[0,-3]], fs)
 
 toc = time.time()
 print('|-------------------------------------------------')

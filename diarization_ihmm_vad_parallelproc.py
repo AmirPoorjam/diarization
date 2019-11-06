@@ -10,7 +10,7 @@ import multiprocessing as mp
 tic = time.time()
 import numpy as np
 import librosa
-import mfcc_extraction as fe
+import acoustic_feature_extraction as fe
 import iHmmNormalSampleGibbsStatesPosterior as iHMM
 from scipy import stats
 import sys
